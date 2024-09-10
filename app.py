@@ -1,7 +1,13 @@
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+import sqlite3
 import streamlit as st
 from sentence_transformers import SentenceTransformer, CrossEncoder, util
 from model import retriever, reranker_model
 import chromadb
+
+
 
 # Подключаемся к существующей базе данных
 client = chromadb.PersistentClient(path="./database_80_test")
