@@ -1,8 +1,3 @@
-__import__('pysqlite3')
-import sys
-sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-
-
 import streamlit as st
 from sentence_transformers import SentenceTransformer, CrossEncoder, util
 from model import retriever, reranker_model
@@ -71,7 +66,11 @@ if st.button("Поиск"):
         try:
             results = retrieve_and_rerank(query, top_k=5)
             for res in results:
-                st.write(f"Ранг: {res['rank']}, Документ: {res['candidate']}, Оценка: {res['score']}")
+                st.markdown(f"**Ранг:** {res['rank']}")
+                st.markdown(f"**Оценка:** {res['score']:.4f}")
+                st.markdown("**Документ:**")
+                st.write(res['candidate'])
+                st.markdown("---")  # Разделитель между результатами
         except ValueError as e:
             st.error(f"Ошибка: {e}")
     else:
