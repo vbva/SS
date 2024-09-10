@@ -17,13 +17,13 @@ def prepare_query(query: str) -> list:
     return retriever.encode(query).tolist()
 
 # Основная функция для поиска и ранжирования документов
-def retrieve_and_rerank(query: str, top_k=5, return_only_top1=False):
+def retrieve_and_rerank(query: str, top_k=3, return_only_top1=False):
     query_embeddings = prepare_query(query)
     
     # Выполняем запрос к коллекции
     retrieve_results = collection.query(
         query_embeddings=query_embeddings,
-        n_results=top_k*10,
+        n_results=top_k*12,
         include=['documents']
     )
 
