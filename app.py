@@ -69,7 +69,11 @@ query = st.text_input("Введите запрос:", "")
 if st.button("Поиск"):
     if query:
         try:
-            results = retrieve_and_rerank(query, top_k=5)
+            # Добавляем индикатор выполнения
+            with st.spinner("Поиск документов..."):
+                results = retrieve_and_rerank(query, top_k=5)
+            
+            # Отображаем результаты
             for res in results:
                 st.markdown(f"**Ранг:** {res['rank']}")
                 st.markdown(f"**Оценка:** {res['score']:.4f}")
