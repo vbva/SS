@@ -57,7 +57,7 @@ def retrieve_and_rerank(query: str, top_k=3, return_only_top1=False):
         ]
 
 # Интерфейс Streamlit
-st.title("Контекстный поиск документов базы знаний ")
+st.title("Поиск и ранжирование документов")
 
 query = st.text_input("Введите запрос:", "")
 
