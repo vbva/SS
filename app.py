@@ -1,13 +1,7 @@
-__import__('pysqlite3')
-import sys
-sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-import sqlite3
 import streamlit as st
 from sentence_transformers import SentenceTransformer, CrossEncoder, util
 from model import retriever, reranker_model
 import chromadb
-
-
 
 # Подключаемся к существующей базе данных
 client = chromadb.PersistentClient(path="./database_80_test")
@@ -18,13 +12,13 @@ def prepare_query(query: str) -> list:
     return retriever.encode(query).tolist()
 
 # Основная функция для поиска и ранжирования документов
-def retrieve_and_rerank(query: str, top_k=5, return_only_top1=False):
+def retrieve_and_rerank(query: str, top_k=3, return_only_top1=False):
     query_embeddings = prepare_query(query)
     
     # Выполняем запрос к коллекции
     retrieve_results = collection.query(
         query_embeddings=query_embeddings,
-        n_results=top_k*10,
+        n_results=top_k*12,
         include=['documents']
     )
 
@@ -72,7 +66,11 @@ if st.button("Поиск"):
         try:
             results = retrieve_and_rerank(query, top_k=5)
             for res in results:
-                st.write(f"Ранг: {res['rank']}, Документ: {res['candidate']}, Оценка: {res['score']}")
+                st.markdown(f"**Ранг:** {res['rank']}")
+                st.markdown(f"**Оценка:** {res['score']:.4f}")
+                st.markdown("**Документ:**")
+                st.write(res['candidate'])
+                st.markdown("---")  # Разделитель между результатами
         except ValueError as e:
             st.error(f"Ошибка: {e}")
     else:
