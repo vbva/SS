@@ -1,9 +1,8 @@
 __import__('pysqlite3')
 import sys
+import time
 
 sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-
-
 
 import streamlit as st
 from sentence_transformers import SentenceTransformer, CrossEncoder, util
@@ -73,12 +72,20 @@ query = st.text_input("Введите запрос:", "")
 if st.button("Поиск"):
     if query:
         try:
+            # Замеряем время начала поиска
+            start_time = time.time()
+
             # Добавляем индикатор выполнения
             with st.spinner("Поиск документов..."):
                 # Убираем индикатор при кэшировании
                 results = retrieve_and_rerank(query, top_k=5)
             
+            # Замеряем время окончания поиска
+            end_time = time.time()
+            search_time = end_time - start_time  # Время поиска
+
             # Отображаем результаты
+            st.success(f"Поиск завершен за {search_time:.2f} секунд.")
             for res in results:
                 st.markdown(f"**Ранг:** {res['rank']}")
                 st.markdown(f"**Оценка:** {res['score']:.4f}")
