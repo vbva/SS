@@ -1,29 +1,26 @@
-# __import__('pysqlite3')
-# import sys
-# sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-
-
 import streamlit as st
 from sentence_transformers import SentenceTransformer, CrossEncoder, util
 from model import retriever, reranker_model
 import chromadb
 
 # Подключаемся к существующей базе данных
-client = chromadb.PersistentClient(path="./database_100_test")
+client = chromadb.PersistentClient(path="./database_80_test")
 collection = client.get_collection("CB_collection_test")
 
-# Функция для подготовки запроса
+# Кэшируем процесс подготовки запроса для ускорения повторяющихся вычислений
+@st.cache_data
 def prepare_query(query: str) -> list:
     return retriever.encode(query).tolist()
 
 # Основная функция для поиска и ранжирования документов
+@st.cache_data
 def retrieve_and_rerank(query: str, top_k=3, return_only_top1=False):
     query_embeddings = prepare_query(query)
     
-    # Выполняем запрос к коллекции
+    # Выполняем запрос к коллекции, уменьшив количество запрашиваемых документов
     retrieve_results = collection.query(
         query_embeddings=query_embeddings,
-        n_results=top_k*12,
+        n_results=top_k*3,  # Уменьшаем количество документов
         include=['documents']
     )
 
@@ -62,7 +59,7 @@ def retrieve_and_rerank(query: str, top_k=3, return_only_top1=False):
         ]
 
 # Интерфейс Streamlit
-st.title("Поиск и ранжирование документов")
+st.title("Поиск документов")
 
 query = st.text_input("Введите запрос:", "")
 
@@ -71,6 +68,7 @@ if st.button("Поиск"):
         try:
             # Добавляем индикатор выполнения
             with st.spinner("Поиск документов..."):
+                # Убираем индикатор при кэшировании
                 results = retrieve_and_rerank(query, top_k=5)
             
             # Отображаем результаты
