@@ -10,7 +10,7 @@ from model import retriever, reranker_model
 import chromadb
 
 # Подключаемся к существующей базе данных
-client = chromadb.PersistentClient(path="./database_80_test")
+client = chromadb.PersistentClient(path="./database")
 collection = client.get_collection("CB_collection_test")
 
 # Кэшируем процесс подготовки запроса для ускорения повторяющихся вычислений
