@@ -1,6 +1,4 @@
 from sentence_transformers import SentenceTransformer, CrossEncoder, util
-#import chromadb
-#from make_ds_from_docs import ds 
 from datasets import load_dataset
 
 CACHE_DIR = "./hf_cache_3"
