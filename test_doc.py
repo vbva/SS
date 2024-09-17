@@ -1,46 +1,35 @@
 import os
 import glob
-from docx import Document
-import pdfplumber
 from datasets import Dataset
 import chromadb
 from model import preprocess
 
-# Функция для извлечения текста из DOCX
-def extract_text_from_docx(file_path):
-    doc = Document(file_path)
-    return "\n".join([para.text for para in doc.paragraphs])
+# Функция для извлечения текста из TXT
+def extract_text_from_txt(file_path):
+    with open(file_path, 'r', encoding='utf-8') as f:
+        return f.read()
 
-# Функция для извлечения текста из PDF
-def extract_text_from_pdf(file_path):
-    text = ""
-    with pdfplumber.open(file_path) as pdf:
-        for page in pdf.pages:
-            text += page.extract_text() + "\n"
-    return text
-
-# Загрузка документов из папки
+# Генератор для загрузки документов из папки
 def load_documents_from_folder(folder_path):
-    documents = []
-    # Загрузка DOCX файлов
-    for file_path in glob.glob(os.path.join(folder_path, '*.docx')):
-        text = extract_text_from_docx(file_path)
-        documents.append({"file_name": os.path.basename(file_path), "text": text})
-    
-    # Загрузка PDF файлов
-    for file_path in glob.glob(os.path.join(folder_path, '*.pdf')):
-        text = extract_text_from_pdf(file_path)
-        documents.append({"file_name": os.path.basename(file_path), "text": text})
-    
-    return documents
+    # Загрузка TXT файлов
+    for file_path in glob.glob(os.path.join(folder_path, '*.txt')):
+        text = extract_text_from_txt(file_path)
+        yield {"file_name": os.path.basename(file_path), "text": text}
 
-# Путь к директории с документами DOCX и PDF
-folder_path = "./data"
-documents = load_documents_from_folder(folder_path)
-documents = documents[:80]  # Ограничение в 100 документов
+# Функция для записи имен файлов в txt
+def save_document_names(doc_names, file_name="doc_names.txt"):
+    with open(file_name, 'a') as f:
+        for name in doc_names:
+            f.write(f"{name}\n")
+
+# Путь к директории с документами TXT
+folder_path = "C:/Users/vbato/Desktop/local-LLM-with-RAG/new_txt_data"
+
+documents_gen = load_documents_from_folder(folder_path)  # Генератор документов
+batch_size = 20  # Размер батча, можно регулировать
 
 # Создаем локальное хранилище ChromaDB
-client = chromadb.PersistentClient(path="./database_80_test")
+client = chromadb.PersistentClient(path="./database")
 
 # Создание коллекции, если она еще не создана
 collection = client.get_or_create_collection(
@@ -48,29 +37,57 @@ collection = client.get_or_create_collection(
     metadata={"hnsw:space": "cosine"}
 )
 
-# Параметр для размера батча
-batch_size = 10
+# Инициализация списка для накопления батчей документов
+batch_documents = []
+document_names = []
 
-# Обрабатываем документы порциями по batch_size документов
-for i in range(0, len(documents), batch_size):
-    batch = documents[i:i + batch_size]
+# Обрабатываем все документы
+for i, document in enumerate(documents_gen):
+    batch_documents.append(document)
+    document_names.append(document["file_name"])
+
+    # Если накопили batch_size документов
+    if (i + 1) % batch_size == 0:
+        # Создание Dataset из батча документов
+        ds = Dataset.from_dict({"file_name": [doc["file_name"] for doc in batch_documents],
+                                "text": [doc["text"] for doc in batch_documents]})
+
+        # Применение функции preprocess к текстам для получения эмбеддингов
+        ds_embs = ds.map(preprocess, batched=True)
+
+        # Добавление эмбеддингов в коллекцию ChromaDB
+        collection.add(
+            documents=ds_embs["text"],        # Тексты документов
+            embeddings=ds_embs["embeddings"], # Эмбеддинги, сгенерированные функцией preprocess
+            ids=[f"id{i * batch_size + j + 1}" for j in range(len(ds_embs))]  # Уникальные идентификаторы документов
+        )
+        
+        # Сохраняем имена файлов в txt
+        save_document_names([doc["file_name"] for doc in batch_documents])
+
+        # Очищаем batch_documents для следующей порции
+        batch_documents = []
+
+        # Выводим информацию о текущем статусе
+        print(f"Добавлено {len(ds_embs)} документов в коллекцию (batch {i // batch_size + 1}).")
+
+# Добавляем оставшиеся документы, если они не кратны batch_size
+if batch_documents:
+    ds = Dataset.from_dict({"file_name": [doc["file_name"] for doc in batch_documents],
+                            "text": [doc["text"] for doc in batch_documents]})
     
-    # Создание Dataset из батча документов
-    ds = Dataset.from_dict({"file_name": [doc["file_name"] for doc in batch],
-                            "text": [doc["text"] for doc in batch]})
-    
-    # Применение функции preprocess к текстам для получения эмбеддингов
     ds_embs = ds.map(preprocess, batched=True)
-    
-    # Добавление эмбеддингов в коллекцию ChromaDB
+
     collection.add(
-        documents=ds_embs["text"],        # Тексты документов
-        embeddings=ds_embs["embeddings"], # Эмбеддинги, сгенерированные функцией preprocess
-        ids=[f"id{i+j+1}" for j in range(len(ds_embs))]  # Уникальные идентификаторы документов
+        documents=ds_embs["text"],        
+        embeddings=ds_embs["embeddings"], 
+        ids=[f"id{i * batch_size + j + 1}" for j in range(len(ds_embs))]
     )
-    
-    # Выводим информацию о текущем статусе
-    print(f"Добавлено {len(ds_embs)} документов в коллекцию (batch {i // batch_size + 1}).")
+
+    # Сохраняем имена файлов в txt
+    save_document_names([doc["file_name"] for doc in batch_documents])
+
+    print(f"Добавлено {len(ds_embs)} документов в коллекцию (финальный batch).")
 
 # Выводим информацию о завершении процесса
-print(f"Добавление всех документов завершено. Всего добавлено {len(documents)} документов.")
+print(f"Добавление всех документов завершено. Всего добавлено {i + 1} документов.")
